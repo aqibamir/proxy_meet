@@ -1,12 +1,13 @@
 import os
+import json
 import pyaudio
 from dotenv import load_dotenv
-from deepgram import DeepgramClient, DeepgramClientOptions, SpeakRESTOptions
+from deepgram import DeepgramClient, SpeakRESTOptions
 
 class LocalPresenter:
     """
-    A simple, local-only agent that reads a script and speaks it using Deepgram's TTS.
-    This version is corrected to use the modern Deepgram SDK methods.
+    A simple, local-only agent that reads a structured JSON script and 
+    speaks the talking points using Deepgram's TTS.
     """
 
     def __init__(self):
@@ -28,34 +29,32 @@ class LocalPresenter:
         )
         print("Audio output stream opened.")
 
-    def _load_script(self, script_path="presentation_script.txt"):
-        """Loads the presentation script from a text file."""
+    def _load_script(self, script_path="presentation_script.json"):
+        """Loads the presentation script from a JSON file."""
         try:
             with open(script_path, 'r') as f:
-                return [line.strip() for line in f if line.strip()]
+                return json.load(f)
         except FileNotFoundError:
             print(f"Error: Script file not found at '{script_path}'")
+            return []
+        except json.JSONDecodeError:
+            print(f"Error: Could not decode JSON from '{script_path}'")
             return []
 
     def speak(self, text):
         """Uses Deepgram's TTS to speak a single line of text."""
         try:
-            # For the REST API, the source is a simple dictionary
             source = {"text": text}
-            
-            # Configure TTS options
             options = SpeakRESTOptions(
                 model="aura-2-andromeda-en",
                 encoding="linear16",
                 sample_rate=24000
             )
             
-            print(f"\nAgent Speaking: {text}")
+            print(f"Agent Speaking: {text}")
             
-            # Use the correct modern method: speak.v("1").stream_memory()
             response = self.deepgram.speak.v("1").stream_memory(source, options)
             
-            # The audio data is in the .stream attribute of the response
             if response and response.stream:
                 self.stream.write(response.stream.getvalue())
 
@@ -69,9 +68,18 @@ class LocalPresenter:
             print("Presentation script is empty or could not be loaded. Exiting.")
             return
 
-        print("--- Starting Presentation ---")
-        for line in script:
-            self.speak(line)
+        print("--- Starting Presentation ---\n")
+        for slide in script:
+            # Simulate displaying the slide content in the console
+            print("="*40)
+            print(f"Displaying Slide {slide.get('slide_number', 'N/A')}")
+            print("="*40)
+            print(slide.get('slide_content', 'No content.'))
+            print("="*40)
+            
+            # Speak the corresponding talking points
+            self.speak(slide.get("talking_points", ""))
+            print("\n") # Add a newline for better readability
         
         print("\n--- Presentation Finished ---")
         self.shutdown()
@@ -89,4 +97,3 @@ if __name__ == "__main__":
         presenter.run_presentation()
     except Exception as e:
         print(f"An error occurred during initialization: {e}")
-
