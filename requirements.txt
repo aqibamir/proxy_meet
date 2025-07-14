@@ -1,0 +1,4 @@
+flask==3.*
+flask-socketio==5.*
+python-dotenv==1.*
+deepgram-sdk==3.*
