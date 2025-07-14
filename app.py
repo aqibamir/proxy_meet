@@ -1,99 +1,229 @@
+"""
+LocalPresenter.py
+A presentation agent that:
+  1. Reads a JSON slide deck,
+  2. Speaks the talking points through a virtual audio device,
+  3. Listens for questions over the same virtual device,
+  4. Answers with LLM-generated speech.
+
+This version uses `sounddevice` + `soundfile` instead of `pyaudio`
+to avoid the common “no audio” problems on macOS.
+"""
+
 import os
 import json
-import pyaudio
+import asyncio
+import sounddevice as sd
+import soundfile as sf
+import numpy as np
+from io import BytesIO
 from dotenv import load_dotenv
-from deepgram import DeepgramClient, SpeakRESTOptions
+from deepgram import DeepgramClient, SpeakRESTOptions, LiveTranscriptionEvents, LiveOptions
+from groq import Groq
+
+# -------------------- Audio helpers --------------------
+def select_blackhole_device(kind: str) -> int | None:
+    """
+    kind = 'input' or 'output'
+    Returns the first device whose name contains 'BlackHole'.
+    """
+    devices = sd.query_devices()
+    for idx, dev in enumerate(devices):
+        if "BlackHole".lower() in dev["name"].lower():
+            if kind == "input" and dev["max_input_channels"] > 0:
+                return idx
+            if kind == "output" and dev["max_output_channels"] > 0:
+                return idx
+    return None
+
 
 class LocalPresenter:
-    """
-    A simple, local-only agent that reads a structured JSON script and 
-    speaks the talking points using Deepgram's TTS.
-    """
-
     def __init__(self):
         load_dotenv()
-        self.api_key = os.getenv("DEEPGRAM_API_KEY")
-        if not self.api_key or self.api_key == "YOUR_DEEPGRAM_API_KEY_HERE":
-            raise ValueError("Please set your DEEPGRAM_API_KEY in the .env file.")
-        
-        # Initialize Deepgram with the API key
-        self.deepgram = DeepgramClient(self.api_key)
+        self.dg_client = DeepgramClient()
+        self.groq_client = Groq()
+        self.transcript_queue = asyncio.Queue()
 
-        # Initialize PyAudio for speaker output
-        self.pyaudio_instance = pyaudio.PyAudio()
-        self.stream = self.pyaudio_instance.open(
-            format=pyaudio.paInt16,
-            channels=1,
-            rate=24000, # Aura voices output at 24kHz
-            output=True
+        # ---------------- Audio device selection ----------------
+        mic_idx = select_blackhole_device("input")
+        speaker_idx = select_blackhole_device("output")
+        if mic_idx is None or speaker_idx is None:
+            print("\n" + "=" * 60)
+            print("ERROR: BlackHole device not found. Install with:")
+            print("    brew install blackhole-2ch")
+            print("Then set Zoom’s mic & speaker to 'BlackHole 2ch'.")
+            print("=" * 60 + "\n")
+            print(sd.query_devices())
+            raise SystemExit
+
+        self.mic_idx = mic_idx
+        self.speaker_idx = speaker_idx
+        print(
+            f"Using BlackHole: mic device {mic_idx}, speaker device {speaker_idx}"
         )
-        print("Audio output stream opened.")
 
+        # Audio parameters
+        self.SAMPLE_RATE_OUT = 24_000  # Deepgram TTS output
+        self.SAMPLE_RATE_IN = 16_000   # Deepgram STT input
+
+    # -------------------- Scripted presentation --------------------
     def _load_script(self, script_path="presentation_script.json"):
-        """Loads the presentation script from a JSON file."""
         try:
-            with open(script_path, 'r') as f:
+            with open(script_path) as f:
                 return json.load(f)
-        except FileNotFoundError:
-            print(f"Error: Script file not found at '{script_path}'")
-            return []
-        except json.JSONDecodeError:
-            print(f"Error: Could not decode JSON from '{script_path}'")
-            return []
-
-    def speak(self, text):
-        """Uses Deepgram's TTS to speak a single line of text."""
-        try:
-            source = {"text": text}
-            options = SpeakRESTOptions(
-                model="aura-2-andromeda-en",
-                encoding="linear16",
-                sample_rate=24000
-            )
-            
-            print(f"Agent Speaking: {text}")
-            
-            response = self.deepgram.speak.v("1").stream_memory(source, options)
-            
-            if response and response.stream:
-                self.stream.write(response.stream.getvalue())
-
         except Exception as e:
-            print(f"An error occurred while speaking: {e}")
+            print("Error loading script:", e)
+            return []
 
-    def run_presentation(self):
-        """Main method to run the entire presentation."""
-        script = self._load_script()
-        if not script:
-            print("Presentation script is empty or could not be loaded. Exiting.")
+    async def speak(self, text: str):
+        """Generate speech with Deepgram and play via BlackHole."""
+        if not text.strip():
             return
 
-        print("--- Starting Presentation ---\n")
+        print("Agent speaking:", text)
+        source = {"text": text}
+        opts = SpeakRESTOptions(
+            model="aura-2-andromeda-en",
+            encoding="linear16",
+            sample_rate=self.SAMPLE_RATE_OUT,
+        )
+
+        # Synchronous Deepgram call in thread-pool
+        audio_bytes = await asyncio.to_thread(
+            lambda: self.dg_client.speak.rest.v("1")
+            .stream_memory(source, opts)
+            .stream.read()
+        )
+        audio, sr = sf.read(BytesIO(audio_bytes), dtype="int16")
+
+        # Play via sounddevice
+        await asyncio.to_thread(
+            sd.play, audio, sr, device=self.speaker_idx, blocking=True
+        )
+
+    async def run_presentation(self):
+        script = self._load_script()
+        if not script:
+            print("Empty script. Exiting.")
+            return
+
+        print("\n--- Starting Presentation ---\n")
         for slide in script:
-            # Simulate displaying the slide content in the console
-            print("="*40)
-            print(f"Displaying Slide {slide.get('slide_number', 'N/A')}")
-            print("="*40)
-            print(slide.get('slide_content', 'No content.'))
-            print("="*40)
-            
-            # Speak the corresponding talking points
-            self.speak(slide.get("talking_points", ""))
-            print("\n") # Add a newline for better readability
-        
-        print("\n--- Presentation Finished ---")
-        self.shutdown()
+            print("=" * 40)
+            print(f"Slide {slide.get('slide_number', '?')}")
+            print("=" * 40)
+            print(slide.get("slide_content", ""))
+            print("=" * 40)
+            await self.speak(slide.get("talking_points", ""))
+            print("\n")
 
+        print("\n--- Presentation finished, starting Q&A ---")
+        await self.run_qa_session()
+
+    # -------------------- Q&A Session --------------------
+    async def run_qa_session(self):
+        stt_task = asyncio.create_task(self.listen_for_questions())
+
+        presentation_context = json.dumps(self._load_script(), indent=2)
+        system_prompt = (
+            "You just finished a presentation. Answer questions based on the "
+            "following slide content and your general knowledge:\n\n"
+            "--- SLIDES ---\n"
+            f"{presentation_context}\n"
+            "--- END ---"
+        )
+
+        try:
+            while True:
+                question = await self.transcript_queue.get()
+                if not question:
+                    continue
+                print("\nUser:", question)
+
+                if "thank you goodbye" in question.lower().strip():
+                    await self.speak("You're welcome. Goodbye!")
+                    break
+
+                answer = await self.get_llm_response(question, system_prompt)
+                await self.speak(answer)
+                print("Ready for next question...")
+
+        except asyncio.CancelledError:
+            pass
+        finally:
+            stt_task.cancel()
+            try:
+                await stt_task
+            except asyncio.CancelledError:
+                pass
+
+    async def get_llm_response(self, question: str, system: str) -> str:
+        try:
+            resp = await asyncio.to_thread(
+                self.groq_client.chat.completions.create,
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": question},
+                ],
+                model="llama3-8b-8192",
+            )
+            return resp.choices[0].message.content
+        except Exception as e:
+            print("LLM error:", e)
+            return "Sorry, I’m having trouble answering right now."
+
+    # -------------------- Speech-to-Text stream --------------------
+    async def _on_stt_message(self, _, result, **kwargs):
+        transcript = result.channel.alternatives[0].transcript
+        if transcript:
+            await self.transcript_queue.put(transcript)
+
+    async def listen_for_questions(self):
+        dg_conn = self.dg_client.listen.asynclive.v("1")
+        dg_conn.on(LiveTranscriptionEvents.Transcript, self._on_stt_message)
+
+        await dg_conn.start(
+            LiveOptions(model="nova-2", language="en-US", smart_format=True)
+        )
+        print("Listening... (say 'thank you goodbye' to exit)")
+
+        def audio_callback(indata, frames, time_, status):
+            if status:
+                print("input overflow:", status)
+            asyncio.create_task(dg_conn.send_bytes(indata.tobytes()))
+
+        try:
+            with sd.InputStream(
+                samplerate=self.SAMPLE_RATE_IN,
+                channels=1,
+                dtype="int16",
+                device=self.mic_idx,
+                callback=audio_callback,
+            ):
+                while True:
+                    await asyncio.sleep(0.1)
+
+        except asyncio.CancelledError:
+            pass
+        finally:
+            await dg_conn.finish()
+
+    # -------------------- graceful shutdown --------------------
     def shutdown(self):
-        """Cleans up audio resources."""
-        print("Shutting down audio stream.")
-        self.stream.stop_stream()
-        self.stream.close()
-        self.pyaudio_instance.terminate()
+        print("Shutting down audio...")
 
-if __name__ == "__main__":
+
+# -------------------- Entry point --------------------
+async def main():
+    presenter = None
     try:
         presenter = LocalPresenter()
-        presenter.run_presentation()
-    except Exception as e:
-        print(f"An error occurred during initialization: {e}")
+        await presenter.run_presentation()
+    except KeyboardInterrupt:
+        print("\nUser interrupted.")
+    finally:
+        if presenter:
+            presenter.shutdown()
+
+if __name__ == "__main__":
+    asyncio.run(main())
