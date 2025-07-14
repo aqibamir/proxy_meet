@@ -11,6 +11,9 @@ to avoid the common “no audio” problems on macOS.
 """
 
 import os
+import threading
+import whisper, sounddevice as sd, asyncio
+import queue
 import json
 import asyncio
 import sounddevice as sd
@@ -121,9 +124,9 @@ class LocalPresenter:
         await self.run_qa_session()
 
     # -------------------- Q&A Session --------------------
-    async def run_qa_session(self):
-        stt_task = asyncio.create_task(self.listen_for_questions())
+    # ... (previous imports and class definition remain the same)
 
+    async def run_qa_session(self):
         presentation_context = json.dumps(self._load_script(), indent=2)
         system_prompt = (
             "You just finished a presentation. Answer questions based on the "
@@ -133,30 +136,82 @@ class LocalPresenter:
             "--- END ---"
         )
 
-        try:
-            while True:
-                question = await self.transcript_queue.get()
-                if not question:
-                    continue
-                print("\nUser:", question)
+        # Load whisper model
+        model = whisper.load_model("tiny")
+        print("[STT] Whisper model loaded")
 
-                if "thank you goodbye" in question.lower().strip():
-                    await self.speak("You're welcome. Goodbye!")
-                    break
+        async def read_sec():
+            """Record 1 second of audio asynchronously"""
+            def record():
+                audio = sd.rec(
+                    int(16000),
+                    samplerate=16000,
+                    channels=1,
+                    dtype="float32",
+                    blocking=True,
+                    device=self.mic_idx
+                )
+                sd.wait()  # Wait for recording to complete
+                return audio
+            return await asyncio.to_thread(record)
 
-                answer = await self.get_llm_response(question, system_prompt)
-                await self.speak(answer)
-                print("Ready for next question...")
+        silence = 0
+        spoken_once = False
 
-        except asyncio.CancelledError:
-            pass
-        finally:
-            stt_task.cancel()
+        print("\n--- Q&A session started. Listening... ---\n")
+
+        while silence < 4:
+            print("[STT] Recording 1-second chunk...")
             try:
-                await stt_task
-            except asyncio.CancelledError:
-                pass
+                audio = await read_sec()
+                audio = audio.squeeze()  # Convert to mono
+            except Exception as e:
+                print("Recording error:", e)
+                continue
 
+            # Transcribe in a thread
+            try:
+                result = await asyncio.to_thread(
+                    model.transcribe, audio, language="en", fp16=False
+                )
+                txt = result["text"].strip()
+            except Exception as e:
+                print("Transcription error:", e)
+                txt = ""
+
+            # Ignore empty or filler
+            if not txt or txt.lower() in {"[blank_audio]", ""}:
+                silence += 1
+                print(f"[STT] Silence #{silence}")
+                if not spoken_once and silence >= 3:
+                    await self.speak("Since there are no more questions, I'm finishing the Q&A. Goodbye!")
+                    break
+                continue
+
+            # Real speech detected
+            spoken_once = True
+            silence = 0
+            print(f"[STT] User: {txt}")
+
+            # Check for goodbye phrase
+            if "bye" in txt.lower():
+                await self.speak("You're welcome. Goodbye!")
+                break
+
+            # Generate and speak the answer
+            try:
+                answer = await self.get_llm_response(txt, system_prompt)
+                await self.speak(answer)
+            except Exception as e:
+                print("Error in answering:", e)
+                await self.speak("Sorry, I encountered an error while answering.")
+
+            # Prompt for next question
+            await self.speak("Anything else?")
+
+        print("\n--- Q&A session ended ---")
+
+# ... (rest of the class and main function remain the same)
     async def get_llm_response(self, question: str, system: str) -> str:
         try:
             resp = await asyncio.to_thread(
@@ -177,38 +232,57 @@ class LocalPresenter:
         transcript = result.channel.alternatives[0].transcript
         if transcript:
             await self.transcript_queue.put(transcript)
-
     async def listen_for_questions(self):
-        dg_conn = self.dg_client.listen.asynclive.v("1")
-        dg_conn.on(LiveTranscriptionEvents.Transcript, self._on_stt_message)
 
-        await dg_conn.start(
-            LiveOptions(model="nova-2", language="en-US", smart_format=True)
-        )
-        print("Listening... (say 'thank you goodbye' to exit)")
+        model = whisper.load_model("tiny")
+        print("[STT-DEBUG] Whisper model loaded")
 
-        def audio_callback(indata, frames, time_, status):
-            if status:
-                print("input overflow:", status)
-            asyncio.create_task(dg_conn.send_bytes(indata.tobytes()))
+        async def read_sec():
+            audio = sd.rec(int(16000), samplerate=16000,
+                           channels=1, dtype="float32", blocking=True)
+            return audio.squeeze()
 
-        try:
-            with sd.InputStream(
-                samplerate=self.SAMPLE_RATE_IN,
-                channels=1,
-                dtype="int16",
-                device=self.mic_idx,
-                callback=audio_callback,
-            ):
-                while True:
-                    await asyncio.sleep(0.1)
+        silence = 0
+        spoken_once = False       # becomes True after first real question
 
-        except asyncio.CancelledError:
-            pass
-        finally:
-            await dg_conn.finish()
+        while True:
+            print("[STT-DEBUG] Recording 1-s chunk…")
+            audio = await read_sec()
+            txt = (await asyncio.to_thread(
+                model.transcribe, audio, language="en", fp16=False
+            ))["text"].strip()
 
-    # -------------------- graceful shutdown --------------------
+            # ignore blank
+            if not txt or txt.lower() in {"[blank_audio]", ""}:
+                silence += 1
+                print(f"[STT-DEBUG] Silence #{silence}")
+                # quit only if we never heard anything
+                if not spoken_once and silence >= 3:
+                    await self.speak("Since there are no more questions, I’m finishing the Q&A. Goodbye!")
+                    break
+                # otherwise keep waiting
+                continue
+
+            # real speech detected
+            spoken_once = True
+            silence = 0
+            print(f"[STT-DEBUG] USER: {txt}")
+
+            if "thank you goodbye" in txt.lower():
+                await self.speak("You're welcome. Goodbye!")
+                break
+
+            print("[STT-DEBUG] Pausing mic while agent speaks")
+            sd.stop()
+
+            answer = await self.get_llm_response(txt, self.system_prompt)
+            await self.speak(answer)
+
+            # ask for more questions
+            await self.speak("Anything else?")
+            sd.start()  
+
+   # -------------------- Graceful shutdown --------------------
     def shutdown(self):
         print("Shutting down audio...")
 
