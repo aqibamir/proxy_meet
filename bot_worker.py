@@ -6,10 +6,12 @@ import requests
 from pydub import AudioSegment
 from deepgram import DeepgramClient, SpeakRESTOptions
 from local_presenter import LocalPresenter  # Importing the original LocalPresenter
+from dotenv import load_dotenv
 
+load_dotenv()
 # API Configuration
-API_KEY = "80737c07b7c4433ce2cef5019370b468c884e77e"  # Replace with your Recall.ai API key
-MEETING = "https://us05web.zoom.us/j/81799439757?pwd=pn6p1f5m1ev6O68RQwviN6GQPsPTGm.1"  # Replace with your Zoom meeting URL
+API_KEY = os.getenv("RECALL_API_KEY")  # Replace with your Recall.ai API key
+MEETING = os.getenv("ZOOM_LINK")  # Replace with your Zoom meeting URL
 BASE = "https://us-west-2.recall.ai/api/v1"
 
 # Audio Directory
