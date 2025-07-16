@@ -1,10 +1,4 @@
-"""
-slides_generator.py
-PDF + prompt → .pptx + JSON → Google-Slides public URL
-"""
-
 import os
-import json
 import datetime
 from pathlib import Path
 from typing import List, Dict
@@ -17,9 +11,7 @@ from googleapiclient.http import MediaFileUpload
 from openai import OpenAI
 from PyPDF2 import PdfReader
 
-# --------------------------------------------------
 # CONFIG
-# --------------------------------------------------
 SERVICE_ACCOUNT_FILE = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "credentials.json")
 TEMPLATES_FOLDER_ID  = os.getenv("TEMPLATES_FOLDER",  "1bz3HQH4TUEqEFIid-zjIYqFeCcaA96z1")
 OUTPUT_FOLDER_ID     = os.getenv("OUTPUT_FOLDER",     "1RefP1KaakdfK0oQuVd3YW4Y1gy1Phax-")
@@ -35,9 +27,7 @@ drive_service  = build("drive",  "v3", credentials=creds)
 slides_service = build("slides", "v1", credentials=creds)
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY", "sk-placeholder"))
 
-# --------------------------------------------------
 # UTILS
-# --------------------------------------------------
 def list_templates(folder_id: str) -> List[Dict[str, str]]:
     q = f"'{folder_id}' in parents and mimeType='application/vnd.google-apps.presentation'"
     return drive_service.files().list(q=q, fields="files(id,name)").execute().get("files", [])
@@ -63,9 +53,7 @@ def copy_template(template_id: str, name: str) -> str:
     body = {"name": name, "parents": [OUTPUT_FOLDER_ID]}
     return drive_service.files().copy(fileId=template_id, body=body).execute()["id"]
 
-# --------------------------------------------------
 # TEXT / JSON GENERATION
-# --------------------------------------------------
 def read_pdf(pdf_path: str) -> str:
     with open(pdf_path, "rb") as f:
         return "".join(page.extract_text() or "" for page in PdfReader(f).pages)
@@ -83,9 +71,7 @@ def structure_content(prompt: str, pdf_text: str) -> str:
     )
     return resp.choices[0].message.content.strip()
 
-# --------------------------------------------------
 # UPLOAD & RETURN PUBLIC URL
-# --------------------------------------------------
 def upload_pptx_to_google_slides(pptx_path: str, title: str) -> str:
     file_metadata = {"name": title, "mimeType": "application/vnd.google-apps.presentation"}
     media = MediaFileUpload(
@@ -94,16 +80,14 @@ def upload_pptx_to_google_slides(pptx_path: str, title: str) -> str:
     )
     file = drive_service.files().create(body=file_metadata, media_body=media, fields="id").execute()
     file_id = file.get("id")
-    drive_service.permissions().create(fileId=file_id, body={"role": "reader", "type": "anyone"})
+    drive_service.permissions().create(fileId=file_id, body={"role": "reader", "type": "anyone"}).execute()
     return f"https://docs.google.com/presentation/d/{file_id}/present"
 
-# --------------------------------------------------
 # MAIN FUNCTION
-# --------------------------------------------------
-def generate_presentation(prompt: str, pdf_path: str) -> str:
+def generate_presentation(prompt: str, pdf_path: str, output_dir: str) -> str:
     """
-    PDF + prompt → .pptx → Google-Slides public URL
-    Also writes JSON deck for LocalPresenter
+    PDF + prompt → .pptx + JSON → Google-Slides public URL
+    Saves .pptx and JSON to the specified output_dir
     """
     templates = list_templates(TEMPLATES_FOLDER_ID)
     if not templates:
@@ -116,8 +100,8 @@ def generate_presentation(prompt: str, pdf_path: str) -> str:
     template = pick_valid_template(templates)
     new_id = copy_template(template["id"], f"AI_{datetime.datetime.now():%Y%m%d_%H%M%S}")
 
-    # Export .pptx locally
-    pptx_path = "deck.pptx"
+    # Export .pptx to output_dir
+    pptx_path = os.path.join(output_dir, "deck.pptx")
     drive_service.files().export_media(
         fileId=new_id, mimeType="application/vnd.openxmlformats-officedocument.presentationml.presentation"
     ).execute_to_file(pptx_path)
@@ -125,6 +109,7 @@ def generate_presentation(prompt: str, pdf_path: str) -> str:
     # Upload to Google-Slides
     slides_url = upload_pptx_to_google_slides(pptx_path, topic)
 
-    # Save JSON deck
-    Path("presentation_script.json").write_text(content, encoding="utf-8")
+    # Save JSON deck to output_dir
+    json_path = os.path.join(output_dir, "presentation_script.json")
+    Path(json_path).write_text(content, encoding="utf-8")
     return slides_url
