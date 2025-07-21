@@ -31,7 +31,7 @@ def read_pdf(pdf_path: str) -> str:
 def ask_llm(system: str, user: str, model: str = "gpt-4") -> str:
     """Send system/user prompts to OpenAI and return the text."""
     try:
-        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
         response = client.chat.completions.create(
             model=model,
             messages=[
@@ -120,7 +120,7 @@ def build_pptx(slides: List[Dict], output_dir: str) -> str:
             tf.paragraphs[0].font.color.rgb = RGBColor(100, 100, 100)
             tf.paragraphs[0].alignment = PP_ALIGN.CENTER
 
-    pptx_path = os.path.join(output_dir, "deck.pptx")
+    pptx_path = os.path.join(output_dir, "presentation.pptx")
     try:
         prs.save(pptx_path)
     except Exception as e:
@@ -129,8 +129,8 @@ def build_pptx(slides: List[Dict], output_dir: str) -> str:
     return pptx_path
 
 def build_json(slides: List[Dict], output_dir: str) -> str:
-    """Create slides.json in output_dir and return path."""
-    json_path = os.path.join(output_dir, "slides.json")
+    """Create presentation_script.json in output_dir and return path."""
+    json_path = os.path.join(output_dir, "presentation_script.json")
     try:
         with open(json_path, "w", encoding="utf-8") as f:
             json.dump(slides, f, indent=2, ensure_ascii=False)

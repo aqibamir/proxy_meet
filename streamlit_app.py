@@ -5,11 +5,14 @@ import tempfile
 import threading
 import time
 from datetime import datetime, timedelta, date
-
 import streamlit as st
+from bot_worker import join_and_present  # Import the real join_and_present function
+from slides_generator_local import generate_local  # Import the slide generator
+import logging
 
-# Import our local generator
-from slides_generator_local import generate_local
+# Set up logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 # ------------------------------------------------------------------
 # Streamlit page setup
@@ -46,11 +49,13 @@ if st.button("📑 Generate Slides", use_container_width=True):
         with st.spinner("Generating presentation…"):
             tmp_dir = tempfile.mkdtemp()
             pdf_path = None
-            if pdf_file:
-                pdf_path = os.path.join(tmp_dir, "input.pdf")
-                with open(pdf_path, "wb") as f:
-                    f.write(pdf_file.read())
             try:
+                if pdf_file:
+                    pdf_path = os.path.join(tmp_dir, "input.pdf")
+                    with open(pdf_path, "wb") as f:
+                        f.write(pdf_file.read())
+                
+                logger.info("Starting slide generation")
                 pptx_path, json_path = generate_local(
                     prompt or "Generate a default presentation",
                     pdf_path or "",
@@ -69,13 +74,17 @@ if st.button("📑 Generate Slides", use_container_width=True):
                     mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
                     use_container_width=True,
                 )
+            except Exception as e:
+                st.error(f"Failed to generate slides: {str(e)}")
+                logger.error(f"Slide generation error: {str(e)}")
             finally:
                 shutil.rmtree(tmp_dir, ignore_errors=True)
+                logger.info("Cleaned up temporary directory")
 
 st.markdown("---")
 
 # ------------------------------------------------------------------
-# SECTION 2 – Join Zoom Meeting (unchanged logic)
+# SECTION 2 – Join Zoom Meeting
 # ------------------------------------------------------------------
 st.subheader("Join Zoom Meeting")
 col3, col4 = st.columns([2, 1])
@@ -111,24 +120,26 @@ if st.button("🤝 Join Meeting", use_container_width=True):
     elif not re.match(r"https://[a-zA-Z0-9.-]+\.zoom\.us/[a-zA-Z0-9_/?-]+", zoom_url):
         st.warning("The Zoom link format looks invalid. Please ensure it starts with https://*.zoom.us/.")
     else:
-        # Dummy join_and_present for now; replace with real bot_worker
-        def join_and_present(url: str) -> None:
-            time.sleep(2)  # simulate work
-            print("Bot joined", url)
-
-        if join_option == "Join Now":
-            st.success("✅ Bot is joining the meeting now.")
-            threading.Thread(target=join_and_present, args=(zoom_url,), daemon=True).start()
-        else:
-            if not join_time:
-                st.error("Please select a valid date and time for scheduling.")
+        try:
+            if join_option == "Join Now":
+                st.success("✅ Bot is joining the meeting now.")
+                logger.info(f"Starting bot immediately for URL: {zoom_url}")
+                threading.Thread(target=join_and_present, args=(zoom_url,), daemon=True).start()
             else:
-                now = datetime.now()
-                if join_time < now:
-                    st.warning("Scheduled time is in the past. Running bot immediately.")
-                    threading.Thread(target=join_and_present, args=(zoom_url,), daemon=True).start()
+                if not join_time:
+                    st.error("Please select a valid date and time for scheduling.")
                 else:
-                    delay_seconds = (join_time - now).total_seconds()
-                    st.success(f"✅ Bot scheduled to join at {join_time.strftime('%Y-%m-%d %H:%M:%S')}.")
-                    threading.Timer(delay_seconds, join_and_present, args=(zoom_url,)).start()
-        st.info("The bot is running in the background. You can close this page.")
+                    now = datetime.now()
+                    if join_time < now:
+                        st.warning("Scheduled time is in the past. Running bot immediately.")
+                        logger.info(f"Scheduled time in past, starting bot immediately for URL: {zoom_url}")
+                        threading.Thread(target=join_and_present, args=(zoom_url,), daemon=True).start()
+                    else:
+                        delay_seconds = (join_time - now).total_seconds()
+                        st.success(f"✅ Bot scheduled to join at {join_time.strftime('%Y-%m-%d %H:%M:%S')}.")
+                        logger.info(f"Scheduling bot for {join_time} (delay: {delay_seconds}s) for URL: {zoom_url}")
+                        threading.Timer(delay_seconds, join_and_present, args=(zoom_url,)).start()
+            st.info("The bot is running in the background. You can close this page.")
+        except Exception as e:
+            st.error(f"Failed to start bot: {str(e)}")
+            logger.error(f"Error starting bot: {str(e)}")

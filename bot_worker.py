@@ -1,170 +1,258 @@
+#!/usr/bin/env python3
+"""
+bot_worker.py
+Bot joins a Zoom call with:
+  - camera = live slide deck (presentation.pptx)
+  - audio  = spoken talking points (JSON + TTS)
+Slides advance as soon as the TTS audio finishes.
+"""
+
 import asyncio
 import base64
+import io
 import os
 import time
 import requests
+from pathlib import Path
+from pptx import Presentation
+from PIL import Image
+from aiohttp import web
 from pydub import AudioSegment
 from deepgram import DeepgramClient, SpeakRESTOptions
 from local_presenter import LocalPresenter
 from dotenv import load_dotenv
 import threading
+import logging
+import sys
 
+# ---------- Logging ----------
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(levelname)s - %(funcName)s - %(message)s',
+    handlers=[logging.StreamHandler(sys.stdout), logging.FileHandler("bot_worker.log")]
+)
+logger = logging.getLogger(__name__)
 
+# ---------- Env & Config ----------
 load_dotenv()
 
-# API Configuration
-API_KEY = os.getenv("RECALL_API_KEY")
-BASE = "https://us-west-2.recall.ai/api/v1"
+API_KEY          = os.getenv("RECALL_API_KEY")
+DEEPGRAM_API_KEY = os.getenv("DEEPGRAM_API_KEY")
+SLIDE_SERVER_URL = os.getenv("SLIDE_SERVER_URL", "https://1e675d80b1613.ngrok-free.app")
 
-# Audio Directory
-AUDIO_DIR = "audio_files"
+BASE         = "https://us-west-2.recall.ai/api/v1"
+PPTX_PATH    = "presentation.pptx"
+SLIDES_PORT  = 3443
+AUDIO_DIR    = "audio_files"
 os.makedirs(AUDIO_DIR, exist_ok=True)
 
-# Helper Functions
-def _post(path, payload):
-    """Make POST requests to Recall.ai API."""
-    r = requests.post(BASE + path, json=payload, headers={"Authorization": f"Token {API_KEY}"})
+# ---------- Global ----------
+connected_websockets = set()          # live WebSocket clients
+slides_b64           = []             # base64 PNG frames
+
+# ---------- Recall helpers ----------
+def _post(path: str, payload: dict):
+    headers = {"Authorization": f"Token {API_KEY}", "ngrok-skip-browser-warning": "true"}
+    r = requests.post(BASE + path, json=payload, headers=headers)
+    logger.info(f"POST {path}: {r.status_code}")
     r.raise_for_status()
     return r.json()
 
-def _get(path):
-    """Make GET requests to Recall.ai API."""
-    r = requests.get(BASE + path, headers={"Authorization": f"Token {API_KEY}"})
+def _get(path: str):
+    headers = {"Authorization": f"Token {API_KEY}", "ngrok-skip-browser-warning": "true"}
+    r = requests.get(BASE + path, headers=headers)
+    logger.info(f"GET {path}: {r.status_code}")
     r.raise_for_status()
     return r.json()
 
-def convert_wav_to_mp3(wav_path, mp3_path):
-    """Convert WAV audio to MP3 using pydub."""
-    audio = AudioSegment.from_wav(wav_path)
-    audio.export(mp3_path, format="mp3")
-    return mp3_path
+# ---------- PPTX → PNG ----------
+def load_pptx(path=PPTX_PATH):
+    if not os.path.exists(path):
+        raise FileNotFoundError(path)
+    prs = Presentation(path)
+    for slide in prs.slides:
+        img = Image.new("RGB", (1280, 720), (255, 255, 255))
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        slides_b64.append(base64.b64encode(buf.getvalue()).decode())
+    logger.info(f"Loaded {len(slides_b64)} slides")
 
-def encode_audio_to_base64(mp3_path):
-    """Encode MP3 file to base64 string."""
-    with open(mp3_path, "rb") as f:
-        audio_bytes = f.read()
-    return base64.b64encode(audio_bytes).decode("utf-8")
+# ---------- Slide Server ----------
+def build_html():
+    imgs = "\n".join(
+        f'<img src="data:image/png;base64,{b64}" style="display:none">' for b64 in slides_b64
+    )
+    return f"""<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <style>
+    html,body{{margin:0;height:100%;background:#000;display:flex;align-items:center;justify-content:center}}
+    img{{width:100%;height:100%;object-fit:contain;display:none}}
+    img.active{{display:block}}
+  </style>
+</head>
+<body>
+  <div id="slides">{imgs}</div>
+  <script>
+    let idx = 0;
+    const changeSlide = (n) => {{
+      if (n < 0 || n >= {len(slides_b64)}) return;
+      document.querySelectorAll('#slides img').forEach((img, i) =>
+        img.classList.toggle('active', i === n)
+      );
+      idx = n;
+      console.log('Slide →', n);
+    }};
+    changeSlide(0);
 
-def get_audio_duration(mp3_path):
-    """Get the duration of an MP3 file in seconds."""
-    audio = AudioSegment.from_mp3(mp3_path)
-    return len(audio) / 1000
+    const ws = new WebSocket(`wss://${{location.host}}/ws`);
+    ws.onmessage = (e) => changeSlide(parseInt(e.data, 10));
+    ws.onopen    = () => console.log('WS connected');
+    ws.onclose   = () => console.log('WS closed');
+  </script>
+</body>
+</html>"""
 
-# Zoom Presenter Class
+async def slide_server():
+    logger.debug("Entering slide_server")
+    try:
+        async def index(_):
+            return web.Response(text=build_html(), content_type="text/html")
+
+        async def websocket_handler(request):
+            ws = web.WebSocketResponse()
+            await ws.prepare(request)
+            connected_websockets.add(ws)
+            logger.info("WebSocket client connected")
+            try:
+                async for _ in ws:
+                    pass
+            finally:
+                connected_websockets.discard(ws)
+                logger.info("WebSocket client disconnected")
+            return ws
+
+        app = web.Application()
+        app.router.add_get("/", index)
+        app.router.add_get("/ws", websocket_handler)
+
+        runner = web.AppRunner(app)
+        await runner.setup()
+        site = web.TCPSite(runner, "0.0.0.0", SLIDES_PORT)
+        await site.start()
+        logger.info(f"Slide server running on {SLIDE_SERVER_URL}")
+    except Exception as e:
+        logger.error(f"Failed to start slide server: {str(e)}")
+        raise
+    finally:
+        logger.debug("Exiting slide_server")
+        
+# ---------- ZoomPresenter ----------
 class ZoomPresenter(LocalPresenter):
-    def __init__(self, bot_id):
+    def __init__(self, bot_id: str):
         super().__init__()
-        self.bot_id = bot_id
-        self.SAMPLE_RATE_OUT = 16000
+        self.bot_id      = bot_id
+        self.SAMPLE_RATE_OUT = 16_000
+        self.slide_idx   = 0
+        self.max_slides  = len(slides_b64) - 1
 
     async def speak(self, text: str):
-        """Generate audio and send it to the Zoom bot instead of playing locally."""
         if not text.strip():
             return
+        logger.info(f"[TTS] {text}")
 
-        print(f"[TTS] Generating speech for: {text}")
-        source = {"text": text}
+        dg   = DeepgramClient()
         opts = SpeakRESTOptions(
             model="aura-2-andromeda-en",
             encoding="linear16",
             sample_rate=self.SAMPLE_RATE_OUT,
         )
         audio_bytes = await asyncio.to_thread(
-            lambda: self.dg_client.speak.rest.v("1").stream_memory(source, opts).stream.read()
+            lambda: dg.speak.rest.v("1").stream_memory({"text": text}, opts).stream.read()
         )
-        wav_filename = f"audio_{time.time()}.wav"
-        wav_path = os.path.join(AUDIO_DIR, wav_filename)
+
+        wav_path = f"{AUDIO_DIR}/tmp_{time.time()}.wav"
+        mp3_path = wav_path.replace(".wav", ".mp3")
+
         with open(wav_path, "wb") as f:
             f.write(audio_bytes)
-        mp3_filename = f"audio_{time.time()}.mp3"
-        mp3_path = os.path.join(AUDIO_DIR, mp3_filename)
-        convert_wav_to_mp3(wav_path, mp3_path)
-        b64_audio = encode_audio_to_base64(mp3_path)
-        try:
-            payload = {"kind": "mp3", "b64_data": b64_audio}
-            _post(f"/bot/{self.bot_id}/output_audio/", payload)
-            print(f"[AUDIO] Sent audio to bot: {text}")
-        except Exception as e:
-            print(f"[ERROR] Failed to send audio to bot: {e}")
-        duration = get_audio_duration(mp3_path)
-        buffer = 2
-        await asyncio.sleep(duration + buffer)
+        AudioSegment.from_wav(wav_path).export(mp3_path, format="mp3")
+
+        b64 = base64.b64encode(open(mp3_path, "rb").read()).decode()
+        _post(f"/bot/{self.bot_id}/output_audio/", {"kind": "mp3", "b64_data": b64})
+
+        dur = len(AudioSegment.from_mp3(mp3_path)) / 1000.0
+        await asyncio.sleep(dur + 1)
+
+        self.slide_idx = min(self.slide_idx + 1, self.max_slides)
+        await self._change_slide(self.slide_idx)
+
         os.remove(wav_path)
         os.remove(mp3_path)
 
-    async def run_presentation(self):
-        """Run the presentation by speaking each slide's talking points."""
-        script = self._load_script()
-        if not script:
-            print("Empty script. Exiting.")
+    async def _change_slide(self, n: int):
+        if n < 0 or n >= len(slides_b64):
             return
+        for ws in connected_websockets:
+            await ws.send_str(str(n))
+        logger.info(f"Changed to slide {n}")
+
+    async def run_presentation(self):
+        script = self._load_script()
         for slide in script:
-            talking_points = slide.get("talking_points", "")
-            await self.speak(talking_points)
+            await self.speak(slide.get("talking_points", ""))
         await self.run_qa_session()
 
     async def run_qa_session(self):
-        """Simplified Q&A session for Zoom."""
         await self.speak("Any questions?")
-        await self.speak("Thanks for attending! Goodbye!")
-        print("[QA] Q&A session completed.")
+        await self.speak("Thanks for attending. Goodbye!")
 
-# Bot Runner
+# ---------- Bot Runner ----------
 async def run_bot(meeting_url: str):
-    """Asynchronous function to run the bot with the given meeting URL."""
-    silent_mp3_path = "silent.mp3"
-    if not os.path.exists(silent_mp3_path):
-        silent_audio = AudioSegment.silent(duration=1000)
-        silent_audio.export(silent_mp3_path, format="mp3")
-    silent_b64 = encode_audio_to_base64(silent_mp3_path)
+    load_pptx()
+    await slide_server()
 
     bot = _post("/bot", {
         "meeting_url": meeting_url,
         "bot_name": "SlideBot",
-        "automatic_audio_output": {
-            "in_call_recording": {
-                "data": {"kind": "mp3", "b64_data": silent_b64}
+        "output_media": {
+            "camera": {
+                "kind": "webpage",
+                "config": {"url": SLIDE_SERVER_URL}
             }
-        }
+        },
+        "variant": {"zoom": "web_4_core"},
     })
     bot_id = bot["id"]
-    print(f"🤖 Bot created: {bot_id}")
+    logger.info(f"Bot {bot_id} created")
 
-    while True:
-        data = _get(f"/bot/{bot_id}")
-        changes = data.get("status_changes", [])
-        status = changes[-1]["code"] if changes else None
-        print(f"⏳ Status: {status}")
+    # Wait until bot is in call
+    for _ in range(30):
+        status = _get(f"/bot/{bot_id}")["status_changes"][-1]["code"]
+        logger.info(f"Status: {status}")
         if status == "in_call_recording":
             break
-        if status in ("call_ended", "fatal"):
-            raise RuntimeError("Bot failed/left")
         await asyncio.sleep(2)
+    else:
+        raise TimeoutError("Bot never entered call")
 
     presenter = ZoomPresenter(bot_id)
     await presenter.run_presentation()
 
-    requests.delete(f"{BASE}/bot/{bot_id}", headers={"Authorization": f"Token {API_KEY}"})
-    print("👋 Bot removed from meeting.")
+    try:
+        requests.delete(f"{BASE}/bot/{bot_id}",
+                        headers={"Authorization": f"Token {API_KEY}"})
+    except Exception as e:
+        logger.warning(f"Could not delete bot: {e}")
 
-# Frontend-Invokable Function
+# ---------- CLI ----------
 def join_and_present(meeting_url: str):
-    """Synchronous function to start the bot in a background thread."""
     def run():
-        try:
-            asyncio.run(run_bot(meeting_url))
-        except Exception as e:
-            print(f"Error running bot: {e}")
+        asyncio.run(run_bot(meeting_url))
+    threading.Thread(target=run, daemon=False).start()
 
-    thread = threading.Thread(target=run)
-    thread.start()
-    print(f"Started bot for meeting: {meeting_url}")
-
-# For testing
 if __name__ == "__main__":
-    import sys
-    if len(sys.argv) > 1:
-        meeting_url = sys.argv[1]
-        join_and_present(meeting_url)
-    else:
-        print("Usage: python bot_worker.py <meeting_url>")
+    meeting_url = sys.argv[1] if len(sys.argv) > 1 else \
+        "https://us05web.zoom.us/j/89011877257?pwd=bQuK1kwYk3qNGaACAbuY9DLF7tlNbM.1"
+    join_and_present(meeting_url)
