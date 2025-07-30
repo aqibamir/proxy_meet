@@ -35,14 +35,28 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# ---------- Synchronous Wrapper for Streamlit ----------
+def join_and_present(zoom_url):
+    """Join a Zoom meeting and present slides using the bot.
+
+    Args:
+        zoom_url (str): The Zoom meeting URL to join.
+    """
+    try:
+        logger.info(f"Starting bot for URL: {zoom_url}")
+        asyncio.run(run_bot(zoom_url))
+    except Exception as e:
+        logger.error(f"Error in join_and_present: {e}")
+        raise
+
 # ---------- Env & Config ----------
 load_dotenv()
 
 API_KEY          = os.getenv("RECALL_API_KEY")
 DEEPGRAM_API_KEY = os.getenv("DEEPGRAM_API_KEY")
-SLIDE_SERVER_URL = os.getenv("SLIDE_SERVER_URL", "https://1e675d80b1613.ngrok-free.app")
+SLIDE_SERVER_URL = os.getenv("SLIDE_SERVER_URL", "https://c151b1607221.ngrok-free.app")
 BASE             = "https://us-west-2.recall.ai/api/v1"
-PPTX_PATH        = "presentation.pptx"
+PPTX_PATH        = "temp_files/presentation.pptx"
 SLIDES_PORT      = 3443
 AUDIO_DIR        = "audio_files"
 os.makedirs(AUDIO_DIR, exist_ok=True)
@@ -151,7 +165,8 @@ class PNGSlideServer:
   <title>Slide Deck</title>
   <style>
     html,body{{margin:0;height:100%;background:#000;display:flex;align-items:center;justify-content:center}}
-    img{{width:100%;height:100%;object-fit:contain}}
+    img{{width:100%;height:100 Ascending order
+100%;object-fit:contain}}
     #controls{{position:fixed;top:20px;left:20px;color:#fff;font-family:sans-serif}}
   </style>
 </head>

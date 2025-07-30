@@ -70,7 +70,7 @@ class LocalPresenter:
         self.SAMPLE_RATE_IN = 16_000   # Deepgram STT input
 
     # -------------------- Scripted presentation --------------------
-    def _load_script(self, script_path="presentation_script.json"):
+    def _load_script(self, script_path="temp_files/presentation_script.json"):
         try:
             with open(script_path) as f:
                 return json.load(f)

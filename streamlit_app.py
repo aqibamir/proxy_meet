@@ -48,19 +48,27 @@ if st.button("📑 Generate Slides", use_container_width=True):
     else:
         with st.spinner("Generating presentation…"):
             tmp_dir = tempfile.mkdtemp()
+            output_dir = "temp_files"  # Directory for final files
             pdf_path = None
             try:
                 if pdf_file:
                     pdf_path = os.path.join(tmp_dir, "input.pdf")
                     with open(pdf_path, "wb") as f:
                         f.write(pdf_file.read())
-                
+                else:
+                    pdf_path = ""
+
                 logger.info("Starting slide generation")
                 pptx_path, json_path = generate_local(
                     prompt or "Generate a default presentation",
-                    pdf_path or "",
-                    tmp_dir,
+                    pdf_path,
+                    output_dir,
                 )
+
+                if not pptx_path or not json_path:
+                    st.error("Failed to generate slides: No files produced.")
+                    logger.error("Slide generation returned empty file paths")
+                    raise ValueError("Slide generation failed")
 
                 # Read binaries for download button
                 with open(pptx_path, "rb") as f:
