@@ -423,7 +423,7 @@ class ZoomPresenter(LocalPresenter):
         if not self.png_server.transcriptions:
             return
         try:
-            with open("meeting_transcription.txt", "a") as f:
+            with open("temp_files/meeting_transcription.txt", "w") as f:
                 for transcription in self.png_server.transcriptions:
                     f.write(f"{transcription}\n")
             logger.info("Transcriptions saved to meeting_transcription.txt")
