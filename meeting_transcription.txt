@@ -1,0 +1,23 @@
+SlideBot at 0.00s: Welcome everyone, 
+SlideBot at 3.92s: The role 
+SlideBot at 6.51s: So who is .
+SlideBot at 9.61s: If you're 
+SlideBot at 12.26s: As we conclude, .
+SlideBot at 15.74s: Any questions?
+Aqib Amir Khan at 23.13s: yes. I have a question. What is the last days to apply?
+SlideBot at 25.38s: According to slide 4, the application deadline is July 31, 2025.
+SlideBot at 33.21s: Anything else?
+Aqib Amir Khan at 38.42s: And again?
+SlideBot at 36.94s: I just finished a presentation based on the slides you provided. I'm ready to answer your questions based on the slide content and my general knowledge. Go ahead and ask away!
+Aqib Amir Khan at 39.85s: Yes. Can you tell me, like, who is qualified for this role?
+SlideBot at 49.58s: Anything else?
+Aqib Amir Khan at 53.81s: Who is eligible to apply?
+SlideBot at 53.78s: According to slide 3, the Hertz Chair for AI and Neuroscience is looking for someone who:
+
+* Is enrolled (at least 2nd year) in an empirical science or engineering degree
+* Has a fluent command of R and tidyverse
+* Has experience in collaborative code development (git)
+* Has a good command of the English language
+
+So, if you're enrolled in an empirical science or engineering degree, you're proficient in R and tidyverse, you have experience with collaborative code development using git, and you're comfortable with English, you'd be a great fit for this role!
+SlideBot at 88.28s: Due to cost issues, we can only answer three questions for now. Goodbye!
