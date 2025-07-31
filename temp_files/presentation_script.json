@@ -1,9 +1,37 @@
 [
   {
     "slide_number": 1,
+    "slide_type": "title",
+    "slide_title": "Introduction to \"Scooby-Doo, Where Are You!\"",
+    "slide_content": "Talking Points: Welcome everyone! Today, we're going to dive into the wonderful world of \"Scooby-Doo, Where Are You!\" This popular American animated mystery comedy television series has captured the hearts of millions since its debut in 1969.",
+    "talking_points": "Welcome everyone! Today, we're going to dive into the wonderful world of \"Scooby-Doo, Where Are You!\" This popular American animated mystery comedy television series has captured the hearts of millions since its debut in 1969."
+  },
+  {
+    "slide_number": 2,
     "slide_type": "content",
-    "slide_title": "Untitled",
-    "slide_content": "",
-    "talking_points": ""
+    "slide_title": "The Iconic Characters",
+    "slide_content": "- Scooby-Doo: The titular character, a Great Dane who loves food and has a knack for unintentionally solving mysteries.\n- Shaggy Rogers: Scooby's best friend, known for his insatiable appetite and tendency to scare easily.\n- Fred Jones: The leader of the gang who is known for his bravery and resourcefulness.\n- Daphne Blake: The fashion-conscious member of the group who often gets into danger but is also able to think on her feet.\n- Velma Dinkley: The brains of the group, she often finds the clues that lead to the solution of the mystery.",
+    "talking_points": "Let's meet the main characters of the show. First, we have Scooby-Doo, the lovable Great Dane who, along with his best friend Shaggy, often stumbles upon the key to solving the mystery. Then we have Fred, the brave and resourceful leader of the gang. Daphne, the fashion-conscious member, often finds herself in perilous situations but always manages to think on her feet. Lastly, we have Velma, the brains of the operation, who usually finds the clues that lead to the solution of the mystery."
+  },
+  {
+    "slide_number": 3,
+    "slide_type": "visual",
+    "slide_title": "The Mystery Machine",
+    "slide_content": "A picture of the iconic green van with a blue stripe and orange flowers, known as the Mystery Machine.",
+    "talking_points": "No discussion about \"Scooby-Doo, Where Are You!\" would be complete without mentioning the Mystery Machine. This iconic van is the primary mode of transport for our heroes as they travel from one mystery to another. Its unique design and striking colors have made it one of the most recognized vehicles in animation history."
+  },
+  {
+    "slide_number": 4,
+    "slide_type": "content",
+    "slide_title": "The Show's Impact",
+    "slide_content": "- Popularized the mystery-solving genre in children's television.\n- Spawned numerous spin-offs and adaptations.\n- Created a beloved franchise that continues to this day.",
+    "talking_points": "\"Scooby-Doo, Where Are You!\" has had a profound impact on children's television. It popularized the mystery-solving genre, leading to numerous other shows adopting similar themes. The show's success also led to numerous spin-offs and adaptations, creating a beloved franchise that continues to captivate audiences to this day."
+  },
+  {
+    "slide_number": 5,
+    "slide_type": "quote",
+    "slide_title": "\"Scooby-Doo, Where Are You!\" Legacy",
+    "slide_content": "\"Scooby-Doo, where are you? We got some work to do now.\" - Theme Song",
+    "talking_points": "The legacy of \"Scooby-Doo, Where Are You!\" is summed up perfectly in its theme song. These words capture the spirit of the show - a group of friends working together to solve mysteries, with a healthy dose of fun and laughter along the way. It's a formula that has stood the test of time, making Scooby-Doo a beloved character for generations."
   }
 ]

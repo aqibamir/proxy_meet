@@ -173,7 +173,7 @@ def generate_local(prompt: str, pdf_path: str, output_dir: str) -> Tuple[str, st
 
         system_prompt = (
             "You are an expert presentation designer creating engaging, professional slides. "
-            "Generate 3-5 slides based on the user prompt and PDF content. "
+            "Generate 3-5 slides based on the user prompt and PDF content. In some cases there will not be any PDF content and the user prompt might not be detailed enough. Even in that case you need to generate the slides since it is an absolute requirement."
             "For each slide, output EXACTLY:\n"
             "Slide <#> Title: <clear, concise, and engaging title>\n"
             "Slide Type: <content|title|visual|quote>\n"
