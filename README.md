@@ -1,3 +1,6 @@
+# DEMO LINK
+https://youtu.be/R7zIVcgdXGU
+
 # Proxy Meet
 
 Proxy Meet is an innovative tool designed to streamline Zoom meetings by automating slide generation and presentation delivery. With Proxy Meet, users can generate professional presentation slides from a prompt or PDF, have a bot join a Zoom meeting to present the slides, handle a Q&A session, and receive summarized meeting minutes afterward—all with minimal manual effort.
