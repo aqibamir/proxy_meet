@@ -1,5 +1,5 @@
 # DEMO LINK
-https://youtu.be/R7zIVcgdXGU
+[![Proxy Meet Demo](https://img.youtube.com/vi/R7zIVcgdXGU/maxresdefault.jpg)](https://youtu.be/R7zIVcgdXGU)
 
 # Proxy Meet
 
