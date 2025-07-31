@@ -1,0 +1,19 @@
+SlideBot at 0.00s: Welcome everyone. Today, we're going to discuss an exciting opportunity at the University of Bonn. The Hertz Chair for Artificial Intelligence and Neuroscience is looking for a student research programmer in R. Let's delve into the details.
+SlideBot at 16.86s: The role of the student research assistant will be multifaceted. Primarily, it will involve expanding and consolidating existing R code bases. Additionally, the student will be responsible for writing unit tests and preparing packages for CRAN deployment. Lastly, the role includes expanding the documentation.
+SlideBot at 37.92s: The position is initially available for one year. However, there is a possibility for extension. This provides an excellent opportunity for students to gain valuable experience and possibly continue their work beyond the initial period.
+SlideBot at 53.26s: This position is open to students who are at least in their second year of an empirical science or engineering degree. Applicants should have a fluent command of R and tidyverse. Experience in collaborative code development, specifically with git, is also required. Finally, a good command of the English language is necessary.
+SlideBot at 74.76s: To apply, please merge your cover letter, CV, transcript of records and any other relevant documents into one PDF. Send this PDF via email to caian.office@uni-bonn.de. Please note that the deadline for applications is the 31st of July, 2025.
+SlideBot at 94.10s: Any questions?
+Aqib Amir Khan at 99.01s: Yes. I have a question. Like, what is the deadline to apply?
+SlideBot at 102.50s: According to Slide 5, the deadline to apply is July 31, 2025.
+SlideBot at 109.93s: Anything else?
+Aqib Amir Khan at 111.31s: Can you tell me who is eligible to
+SlideBot at 113.69s: According to the presentation, students who are at least in their second year of an empirical science or engineering degree, have a fluent command of R and tidyverse, have experience in collaborative code development (git), and have a good command of the English language are eligible to apply for the position of a student research programmer in R.
+Aqib Amir Khan at 114.14s: Yeah.
+Aqib Amir Khan at 114.81s: Is eligible to apply for this role?
+SlideBot at 134.65s: Anything else?
+Aqib Amir Khan at 136.96s: Okay. And who is
+SlideBot at 138.93s: You just finished a presentation about the Hertz Chair for AI and Neuroscience. What questions do you have?
+Aqib Amir Khan at 138.69s: and who is hiring for this role?
+SlideBot at 147.09s: Due to cost issues, we can only answer three questions for now. Goodbye!
+Aqib Amir Khan at 148.42s: Who is hiring for this role?
