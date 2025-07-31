@@ -1,37 +1,9 @@
 [
   {
     "slide_number": 1,
-    "slide_type": "title",
-    "slide_title": "Introduction to the Hertz Chair for AI and Neuroscience",
-    "slide_content": "Talking Points: Welcome everyone, today we'll be discussing an exciting opportunity at the University of Bonn. The Hertz Chair for Artificial Intelligence and Neuroscience is currently seeking a student research programmer in R. This is a unique chance to be part of a cutting-edge research team, and we are eager to share the details with you.",
-    "talking_points": "Welcome everyone, "
-  },
-  {
-    "slide_number": 2,
     "slide_type": "content",
-    "slide_title": "Job Role and Responsibilities",
-    "slide_content": "- Expanding and consolidating existing R code bases\n- Writing unit tests and preparing packages for CRAN deployment\n- Expanding the documentation",
-    "talking_points": "The role "
-  },
-  {
-    "slide_number": 3,
-    "slide_type": "content",
-    "slide_title": "Who We're Looking For",
-    "slide_content": "- Enrolled (at least 2nd year) in an empirical science or engineering degree\n- Fluent command of R and tidyverse\n- Experience in collaborative code development (git)\n- Good command of the English language",
-    "talking_points": "So who is ."
-  },
-  {
-    "slide_number": 4,
-    "slide_type": "content",
-    "slide_title": "How to Apply",
-    "slide_content": "- Merge your cover letter, CV, transcript of records and any other documents into one PDF\n- Send them via email to caian.office@uni-bonn.de\n- Application deadline: 31 July 2025",
-    "talking_points": "If you're "
-  },
-  {
-    "slide_number": 5,
-    "slide_type": "quote",
-    "slide_title": "\"The future belongs to those who believe in the beauty of their dreams.\" - Eleanor Roosevelt",
-    "slide_content": "\"The future belongs to those who believe in the beauty of their dreams.\" - Eleanor Roosevelt",
-    "talking_points": "As we conclude, ."
+    "slide_title": "Untitled",
+    "slide_content": "",
+    "talking_points": ""
   }
 ]

@@ -10,6 +10,7 @@ waiting 10 seconds for questions, issuing a warning after silence, and leaving
 after 5 more seconds of silence or after 3 questions with a cost-related message.
 A new meeting transcription file is created each run, including both participant
 and bot utterances, saved locally to meeting_transcription.txt.
+When the meeting ends, it creates a meeting_ended.flag file to notify the Streamlit app.
 """
 
 import asyncio
@@ -423,7 +424,7 @@ class ZoomPresenter(LocalPresenter):
         if not self.png_server.transcriptions:
             return
         try:
-            with open("temp_files/meeting_transcription.txt", "w") as f:
+            with open("temp_files/meeting_transcription.txt", "a") as f:
                 for transcription in self.png_server.transcriptions:
                     f.write(f"{transcription}\n")
             logger.info("Transcriptions saved to meeting_transcription.txt")
@@ -432,12 +433,12 @@ class ZoomPresenter(LocalPresenter):
             logger.error(f"Error saving transcriptions: {e}")
 
 # ---------- Bot Runner ----------
-async def run_bot(meeting_url: str):
+async def run_bot(meeting_url: str, email: str = None):
     bot_id = None
     try:
         # Clear the transcription file at the start of each run
         try:
-            with open("meeting_transcription.txt", "w") as f:
+            with open("temp_files/meeting_transcription.txt", "w") as f:
                 f.write("")  # Create or overwrite with empty content
             logger.info("Cleared meeting_transcription.txt for new run")
         except Exception as e:
@@ -502,6 +503,15 @@ async def run_bot(meeting_url: str):
 
         presentation_task = asyncio.create_task(presenter.run_presentation())
         await presentation_task
+
+        # Create flag file to notify Streamlit app
+        try:
+            os.makedirs("temp_files", exist_ok=True)
+            with open("temp_files/meeting_ended.flag", "w") as f:
+                f.write("Meeting ended")
+            logger.info("Created meeting_ended.flag to notify Streamlit app")
+        except Exception as e:
+            logger.error(f"Error creating meeting_ended.flag: {e}")
 
     except Exception as e:
         logger.error(f"Error in run_bot: {e}")

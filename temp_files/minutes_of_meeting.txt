@@ -2,18 +2,20 @@
 
 **Date:** July 31, 2025
 
-**Summary:**
-The meeting featured a presentation by SlideBot, followed by a Q&A session where participants had the opportunity to ask questions regarding the application process and eligibility for a specific role.
+**Summary:**  
+The meeting was held to discuss the student research programmer position at the University of Bonn under the Hertz Chair for Artificial Intelligence and Neuroscience. SlideBot presented the details of the role, eligibility criteria, and application process. A Q&A session followed the presentation.
 
 **Q&A Details:**
 
-1. **Question:** What is the last day to apply?
-   - **Answer:** The application deadline is July 31, 2025.
+1. **Question:** What is the deadline to apply?  
+   **Answer:** The deadline to apply is July 31, 2025.
 
-2. **Question:** Who is qualified for this role?
-   - **Answer:** The eligible candidates must be enrolled (at least in their 2nd year) in an empirical science or engineering degree, have a fluent command of R and tidyverse, experience in collaborative code development (git), and a good command of the English language.
+2. **Question:** Who is eligible to apply for this role?  
+   **Answer:** Students who are at least in their second year of an empirical science or engineering degree, have a fluent command of R and tidyverse, experience in collaborative code development (git), and a good command of the English language are eligible to apply.
 
-3. **Question:** Who is eligible to apply?
-   - **Answer:** Candidates must meet the same qualifications as mentioned above: enrollment in an empirical science or engineering degree, proficiency in R and tidyverse, experience with collaborative code development using git, and comfort with the English language.
+3. **Question:** Who is hiring for this role?  
+   **Answer:** The meeting concluded before this question could be answered, as the Q&A session was limited to three questions.
 
-The meeting concluded after three questions were answered.
+The meeting ended after the third question due to a limitation on the number of questions that could be addressed.
+
+--- End of Minutes ---
